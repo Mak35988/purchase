@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Users</h2>
+<div class="mb-3">
+    <input type="text" id="userSearch" class="form-control" placeholder="Search users...">
+</div>
+<table class="table table-striped mt-4" id="usersTable">
+    <thead>
+        <tr>
+            <th>S.No</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Mobile No</th>
+            <th>Date</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+       {#{% for user in users %}-#}
+       {% for user in users|sort(attribute='date', reverse=True) %}
+        <tr>
+            <td>{{ (users|length) - loop.index0 }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email }}</td>
+            <td>{{ user.mobile_no }}</td>
+            <td>{{ user.date.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+                <button class="btn btn-sm btn-primary edit-user" data-id="{{ user.sno }}">Edit</button>
+                <button class="btn btn-sm btn-danger delete-user" data-id="{{ user.sno }}">Delete</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+<script>
+    document.getElementById('userSearch').addEventListener('keyup', function() {
+        filterTable('usersTable', this.value);
+    });
+
+    function filterTable(tableId, query) {
+        const table = document.getElementById(tableId);
+        const rows = table.getElementsByTagName('tr');
+        const queryLower = query.toLowerCase();
+
+        for(let i = 1; i < rows.length; i++) { // Skip header row
+            const cells = rows[i].getElementsByTagName('td');
+            let found = false;
+
+            for(let cell of cells) {
+                if(cell.textContent.toLowerCase().includes(queryLower)) {
+                    found = true;
+                    break;
+                }
+            }
+
+            rows[i].style.display = found ? '' : 'none';
+        }
+    }
+</script>
+
+<div class="modal fade" id="editUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="editUserForm">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit User</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="sno">
+          <div class="mb-3">
+            <label>Username</label>
+            <input type="text" name="username" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label>Email</label>
+            <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="mb-3">
+            <label>Mobile No</label>
+            <input type="text" name="mobile_no" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

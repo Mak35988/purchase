@@ -1,0 +1,39 @@
+.card {
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.table {
+    margin-top: 20px;
+}
+
+.display-4 {
+    font-size: 2.5rem;
+}
+
+/* Add to static/css/style.css */
+.badge {
+    font-size: 0.9em;
+    padding: 0.6em 1em;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+
+.table th {
+    background-color: #f8f9fa;
+}
+
+/* Search box styling */
+.search-box {
+    margin-bottom: 20px;
+    max-width: 300px;
+}
+
+/* Highlight matching text */
+.highlight {
+    background-color: yellow;
+    font-weight: bold;
+}

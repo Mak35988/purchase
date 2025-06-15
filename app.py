@@ -1,0 +1,233 @@
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+import mysql.connector
+import bcrypt
+from functools import wraps
+
+app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'
+app.config['SESSION_TYPE'] = 'filesystem'
+
+# Database configuration (same as before)
+db_config = {
+    'host': 'localhost',
+    'user': 'root',
+    'password': '1234',
+    'database': 'user_transaction_db'
+}
+# Login required decorator
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin_logged_in' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Routes
+@app.route('/')
+def home():
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        try:
+            username = request.form['username']
+            password = request.form['password'].encode('utf-8')
+
+
+            conn = mysql.connector.connect(**db_config)
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM admins WHERE username = %s", (username,))
+            admin = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            if admin and bcrypt.checkpw(password, admin['password'].encode('utf-8')):
+                session['admin_logged_in'] = True
+                session['admin_username'] = username
+                return redirect(url_for('dashboard'))
+            else:
+                return render_template('login.html', error='Invalid credentials')
+        except mysql.connector.Error as err:
+            error_message = f"Database error: {err}"
+            return render_template('login.html', error=error_message)
+        except Exception as e:
+            return render_template('login.html', error=str(e))
+
+    return render_template('login.html')
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        # Get stats
+        cursor.execute("SELECT COUNT(*) as total_users FROM users")
+        total_users = cursor.fetchone()['total_users']
+        
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total_orders,
+                SUM(status = 'success') as success_orders,
+                SUM(status = 'failed') as failed_orders
+            FROM transaction_table
+        """)
+        stats = cursor.fetchone()
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('dashboard.html',
+                             total_users=total_users,
+                             total_orders=stats['total_orders'],
+                             success_orders=stats['success_orders'],
+                             failed_orders=stats['failed_orders'])
+    
+    except Exception as e:
+        return str(e)
+# Users route
+@app.route('/users')
+@login_required
+def users():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM users ORDER BY date DESC")
+    users = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('users.html', users=users)
+# Transactions route
+@app.route('/transactions')
+@login_required
+def transactions():
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM transaction_table ORDER BY date DESC")
+    transactions = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return render_template('transactions.html', transactions=transactions)
+# User Routes
+@app.route('/get_user/<int:sno>')
+@login_required
+def get_user(sno):
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM users WHERE sno = %s", (sno,))
+    user = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return jsonify(user)
+# Update User Route
+@app.route('/update_user', methods=['PUT'])
+@login_required
+def update_user():
+    try:
+        data = request.get_json()
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users SET
+            username = %s,
+            email = %s,
+            mobile_no = %s
+            WHERE sno = %s
+        """, (data['username'], data['email'], data['mobile_no'], data['sno']))
+        conn.commit()
+        return '', 204
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+@app.route('/delete_user/<int:sno>', methods=['DELETE'])
+@login_required
+def delete_user(sno):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE sno = %s", (sno,))
+        conn.commit()
+        return '', 204
+    except Exception as e:
+        return str(e), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+# Transaction Routes
+@app.route('/get_transaction/<int:sno>')
+@login_required
+def get_transaction(sno):
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM transaction_table WHERE sno = %s", (sno,))
+    transaction = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return jsonify(transaction)
+
+# Update Transaction Route
+@app.route('/update_transaction', methods=['PUT'])
+@login_required
+def update_transaction():
+    try:
+        data = request.get_json()
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE transaction_table SET
+            username = %s,
+            transaction_id = %s,
+            email = %s,
+            amount = %s,
+            commission = %s,
+            status = %s
+            WHERE sno = %s
+        """, (
+            data['username'],
+            data['transaction_id'],
+            data['email'],
+            data['amount'],
+            data['commission'],
+            data['status'],
+            data['sno']
+        ))
+        conn.commit()
+        return '', 204
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/delete_transaction/<int:sno>', methods=['DELETE'])
+@login_required
+def delete_transaction(sno):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM transaction_table WHERE sno = %s", (sno,))
+        conn.commit()
+        return '', 204
+    except Exception as e:
+        return str(e), 400
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# Keep your existing API endpoints here
+# ...
+
+if __name__ == '__main__':
+    #app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000)
+
+
+
